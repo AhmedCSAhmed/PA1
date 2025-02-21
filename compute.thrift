@@ -6,5 +6,5 @@ struct Model {
 service Compute {
     Model get_gradient(),
     void train(1:string training_file),
-    void set_model(1:Work shared_model)
+    void set_model(1:Model shared_model)
 }
