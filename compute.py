@@ -8,7 +8,7 @@ from thrift.server import TServer
 
 
 class computeService:
-    def __init__(self, file="train_letters1.txt", eta=0.0001, epochs=15):
+    def __init__(self, file="PA1/ml/letters/train_letters1.txt", eta=0.0001, epochs=15):
         self._file = file
         self._eta = eta
         self._epochs = epochs
