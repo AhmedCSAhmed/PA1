@@ -189,7 +189,7 @@ class mlp:
 
     # get the model's current weights
     def get_weights(self):
-        return V, W
+        return self.V, self.W
 
 
     # update the model's weights

@@ -8,7 +8,7 @@ from thrift.server import TServer
 
 
 class computeService:
-    def __init__(self, file="PA1/ml/letters/train_letters1.txt", eta=0.0001, epochs=15):
+    def __init__(self, file="PA1/ml/letters/train_letters1.txt", eta=0.0001, epochs=75):
         self._file = file
         self._eta = eta
         self._epochs = epochs
@@ -23,19 +23,13 @@ class computeService:
         return self._eta
 
     def set_eta(self, eta):
-        if eta > 0:  
-            self._eta = eta
-        else:
-            raise ValueError("Learning rate (eta) must be positive")
+        self._eta = eta
 
     def get_epochs(self):
         return self._epochs
 
     def set_epochs(self, epochs):
-        if epochs > 0: 
-            self._epochs = epochs
-        else:
-            raise ValueError("Epochs must be greater than zero")
+        self._epochs = epochs
     
              
     def get_gradient(self):
@@ -51,12 +45,11 @@ class computeService:
         self.set_file(training_file)
         epochs = self.get_epochs()
         eta = self.get_eta()
-        try:
-            if train(eta, epochs) == -1:
-                print("Model Failed to execute exit -1")
-        except ValueError as e:
-            print("error", e)
-            
+        if train(eta, epochs) == -1:
+            raise ValueError("Model Failed to execute exit -1") 
+        
+        print("Model successfully trained")
+   
             
         
 
