@@ -1,13 +1,22 @@
-from PA1.ml.ML import init_training_model,train
+from ml import ML
+import sys
+import glob
 
-from gen_py.compute import Processor
+sys.path.append('gen-py')
+sys.path.insert(0, glob.glob('../../thrift-0.19.0/lib/py/build/lib*')[0])
+
+from compute import Compute
+
+from compute.ttypes import Model
+
+
 from thrift.transport import TSocket, TTransport
 from thrift.protocol import TBinaryProtocol
 from thrift.server import TServer
 
 
 
-class computeService:
+class ComputeHandler:
     def __init__(self, file="PA1/ml/letters/train_letters1.txt", eta=0.0001, epochs=75):
         self._file = file
         self._eta = eta
@@ -33,7 +42,8 @@ class computeService:
     
              
     def get_gradient(self):
-        pass
+        dV, dW = self.model.get_weights()
+        return calc_gradient(dV, matrices[0]), calc_gradient(dW, matrices[1])
     
 
     def train(self, training_file):
@@ -45,7 +55,7 @@ class computeService:
         self.set_file(training_file)
         epochs = self.get_epochs()
         eta = self.get_eta()
-        if train(eta, epochs) == -1:
+        if self.model.train(eta, epochs) == -1:
             raise ValueError("Model Failed to execute exit -1") 
         
         print("Model successfully trained")
@@ -61,9 +71,10 @@ class computeService:
          Under the impression our model is already intially set for us as stated in the doc
         """
         # Can handle base cases if need be as of right now we belilve it'll be the model will alawys be intialized by the main program
-        
+        self.model = mlp()
         fname = self.get_file()
-        init_training_model(fname, shared_model.V, shared_model.W)
+        self.matrices = shared_model.V, shared_model.W
+        self.model.init_training_model(fname, shared_model.V, shared_model.W)
 
 
 
@@ -71,8 +82,8 @@ class computeService:
     
     
 if __name__ == '__main__':
-    handler = computeService()
-    processor = Processor(handler)
+    handler = ComputeHandler()
+    processor = Compute.Processor(handler)
 
     transport = TSocket.TServerSocket(host='127.0.0.1', port=9091)
     tfactory = TTransport.TBufferedTransportFactory()

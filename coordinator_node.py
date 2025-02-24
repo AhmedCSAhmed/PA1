@@ -46,11 +46,10 @@ class CoordinatorHandler:
         # TODO: class variables here
         self.fqueue = queue.Queue()
         self.fqueue_mutex = threading.Lock()
-        self.shgradient = []
+        self.shgradient = ([], [])
         self.shgradient_mutex = threading.Lock()
 
     def compute_work(self, transport, compute_node, shared_weights):
-        
         self.fqueue_mutex.acquire()
         while True:
             try:
@@ -70,7 +69,8 @@ class CoordinatorHandler:
             compute_node.train(fname)
 
             self.shgradient_mutex.acquire()
-            shgradient = ML.sum_matrices(shgradient, compute_node.get_gradient())
+            tempV, tempW = compute_node.get_gradient()
+            shgradient = (ML.sum_matrices(shgradient[0], tempV), ML.sum_matrices(shgradient[1], tempW))
             self.shgradient_mutex.release()
 
 
@@ -82,7 +82,6 @@ class CoordinatorHandler:
 
 
         for i in rounds:
-            shgradient = []
             shweights = almighty.get_weights()
 
             for filename in os.listdir(dir):
@@ -117,8 +116,9 @@ class CoordinatorHandler:
             for thr in threads:
                 thr.join()
 
-            ML.scale_matricies(shgradient, (1.0 / jobs))
-            almighty.update_weights(shgradient)
+            ML.scale_matricies(shgradient[0], (1.0 / jobs))
+            ML.scale_matricies(shgradient[1], (1.0 / jobs))
+            almighty.update_weights(shgradient[0], shgradient[1])
 
             validation_err = almighty.validate()
             print(validation_err)
