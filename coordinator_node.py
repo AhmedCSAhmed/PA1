@@ -47,6 +47,7 @@ class CoordinatorHandler:
         self.fqueue = queue.Queue()
         self.fqueue_mutex = threading.Lock()
         self.shgradient = ([], [])
+        self.init_matrices = [], []
         self.shgradient_mutex = threading.Lock()
 
     def compute_work(self, transport, compute_node, shared_weights):
@@ -54,13 +55,13 @@ class CoordinatorHandler:
         while True:
             try:
                 fname = self.fqueue.get(block=True, timeout=5)
-
+                self.fqueue_mutex.release()
             except queue.Empty as e:
                 self.fqueue_mutex.release()
                 transport.close()
                 return -1
             
-            self.fqueue_mutex.release()
+            print(f'Thread {threading.get_ident()} working on file: {fname}')
             model = Model()
             model.V = shared_weights[0]
             model.W = shared_weights[1]
@@ -69,25 +70,27 @@ class CoordinatorHandler:
             compute_node.train(fname)
 
             self.shgradient_mutex.acquire()
-            tempV, tempW = compute_node.get_gradient()
-            self.shgradient = (ML.sum_matrices(self.shgradient[0], tempV), ML.sum_matrices(self.shgradient[1], tempW))
+            new_model = compute_node.get_gradient()
+
+            self.shgradient = (ML.sum_matricies(self.shgradient[0], new_model.V), ML.sum_matricies(self.shgradient[1], new_model.W))
             self.shgradient_mutex.release()
+        print(f"Exit thread: {threading.get_ident()}")
 
 
     def train(self, files_dir, rounds, epochs, h, k, eta):
-        print(files_dir)
         unfiltered_files = os.listdir(files_dir)
         validate_files = [f for f in unfiltered_files if f.startswith("validate_")]
         files = [f for f in unfiltered_files if f.startswith("train_")]
         almighty = ML.mlp()
         almighty.init_training_random(files_dir + "/" + files[0], k, h)
+        self.init_matrices = almighty.get_weights()
+        self.shgradient = almighty.get_weights()
 
         jobs = 0.0
 
 
         for i in range(rounds):
             shweights = almighty.get_weights()
-            files = os.listdir(files_dir)
 
             for i in range(1, len(files)):
                 filename = files[i]
@@ -109,6 +112,7 @@ class CoordinatorHandler:
                 compute_node = Compute.Client(protocol)
                 try:
                     transport.open()
+                    print(f"Successfully connected to port {portnum}")
                     portnum += 1
                     thr = threading.Thread(target=self.compute_work, args=(transport, compute_node, shweights))
                     threads.append(thr)
@@ -128,7 +132,7 @@ class CoordinatorHandler:
             ML.scale_matricies(self.shgradient[1], (1.0 / jobs))
             almighty.update_weights(self.shgradient[0], self.shgradient[1])
 
-            validation_err = almighty.validate(validate_files[0])
+            validation_err = almighty.validate(files_dir + "/" + validate_files[0])
             print(validation_err)
             return validation_err
 

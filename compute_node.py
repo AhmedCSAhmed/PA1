@@ -43,7 +43,10 @@ class ComputeHandler:
              
     def get_gradient(self):
         dV, dW = self.model.get_weights()
-        return ML.calc_gradient(dV, self.matrices[0]), ML.calc_gradient(dW, self.matrices[1])
+        model = Model()
+        model.V = ML.calc_gradient(dV, self.matrices[0])
+        model.W = ML.calc_gradient(dW, self.matrices[1])
+        return model
     
 
     def train(self, training_file):
