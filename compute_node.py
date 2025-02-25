@@ -17,7 +17,7 @@ from thrift.server import TServer
 
 
 class ComputeHandler:
-    def __init__(self, file="PA1/ml/letters/train_letters1.txt", eta=0.0001, epochs=75):
+    def __init__(self, file="ml/letters/train_letters1.txt", eta=0.0001, epochs=75):
         self._file = file
         self._eta = eta
         self._epochs = epochs
@@ -43,7 +43,7 @@ class ComputeHandler:
              
     def get_gradient(self):
         dV, dW = self.model.get_weights()
-        return calc_gradient(dV, matrices[0]), calc_gradient(dW, matrices[1])
+        return ML.calc_gradient(dV, self.matrices[0]), ML.calc_gradient(dW, self.matrices[1])
     
 
     def train(self, training_file):
@@ -71,10 +71,11 @@ class ComputeHandler:
          Under the impression our model is already intially set for us as stated in the doc
         """
         # Can handle base cases if need be as of right now we belilve it'll be the model will alawys be intialized by the main program
-        self.model = mlp()
+        self.model = ML.mlp()
         fname = self.get_file()
         self.matrices = shared_model.V, shared_model.W
-        self.model.init_training_model(fname, shared_model.V, shared_model.W)
+        if not self.model.init_training_model(fname, shared_model.V, shared_model.W):
+            raise ValueError("Model not initialized properly")
 
 
 

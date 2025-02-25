@@ -10,14 +10,15 @@ import numpy as np
 ##
 
 
+# Scale a matrix by a scalar value (element wise multiplication)
 def scale_matricies(mat, scalar):
     return np.multiply(mat, scalar)
 
-
+# Sum two matricies together
 def sum_matricies(mat, mat2):
     return np.add(mat, mat2)
 
-
+# Subtract curr from orig
 def calc_gradient(curr, orig):
     return np.subtract(curr, orig)
 
@@ -33,6 +34,8 @@ class mlp:
     # read in the data in file fname
     def __init__(self):
         self.initialized = False
+        self.V = []
+        self.W = []
 
 
     def is_initialized(self):
@@ -48,7 +51,7 @@ class mlp:
         X, labels = self.read_data(fname)
 
         # test if datafile was valid
-        if np.size(X) < 1:
+        if np.size(labels) < 1:
             self.initialized = False
             return self.initialized
 
@@ -82,7 +85,8 @@ class mlp:
         X, labels = self.read_data(fname)
 
         # test if datafile is valid
-        if np.size(X) < 1:
+        if np.size(labels) < 1:
+            print("Error: datafile was not valid in init_training_model()")
             self.initialized = False
             return self.initialized
         
@@ -106,6 +110,7 @@ class mlp:
     def train(self, eta, epochs):
 
         if not(self.initialized):
+            print("Uninitialized")
             return -1
 
         # forwards propogate, initialize Y and Z
@@ -140,9 +145,9 @@ class mlp:
         if not(self.initialized):
             return -1
 
-        # return error on no validation data
+        # return error on no validation data / incorrect input dimensions
         X, labels = self.read_data(fname)
-        if np.size(labels) < 1:
+        if np.size(X) < 1 or np.size(X, 1) != self.d:
             return -1
 
         self.forward_propogate(X)
@@ -156,9 +161,9 @@ class mlp:
         if not(self.initialized):
             return -1
 
-        # return error on no prediciton data
+        # return error on no validation data / incorrect input dimensions
         X, labels = self.read_data(fname)
-        if np.size(labels) < 1:
+        if np.size(X) < 1 or np.size(X, 1) != self.d:
             return -1
 
         # append the labels column (prediciton data won't have labels)
@@ -177,10 +182,9 @@ class mlp:
     def set_weights(self, V, W):
 
         # set h and k
-        h, k = np.shape(V)
-        h = h - 1
-        self.h = h
-        self.k = k
+        tup = np.shape(V)
+        self.h = tup[0]
+        self.k = tup[1]
 
         # set W and V
         self.W = W
@@ -239,7 +243,7 @@ class mlp:
         return dV, dW
 
 
-    # read data, do not call this in your thrift code
+    # read data
     def read_data(self, fname):
         X = []
         labels = []
@@ -280,6 +284,7 @@ def error_func(Y, labels):
 
 
 # Calculate the % of wrongly classified samples
+# forward propogate MUST be called first on X corresponding to labels
 def error_rate(Y, labels):
     _n = np.shape(labels)
     return (np.sum(np.not_equal(np.argmax(Y, axis=1), labels)) / _n)[0]

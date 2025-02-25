@@ -70,28 +70,35 @@ class CoordinatorHandler:
 
             self.shgradient_mutex.acquire()
             tempV, tempW = compute_node.get_gradient()
-            shgradient = (ML.sum_matrices(shgradient[0], tempV), ML.sum_matrices(shgradient[1], tempW))
+            self.shgradient = (ML.sum_matrices(self.shgradient[0], tempV), ML.sum_matrices(self.shgradient[1], tempW))
             self.shgradient_mutex.release()
 
 
-    def train(self, dir, rounds, epochs, h, k, eta):
+    def train(self, files_dir, rounds, epochs, h, k, eta):
+        print(files_dir)
+        unfiltered_files = os.listdir(files_dir)
+        validate_files = [f for f in unfiltered_files if f.startswith("validate_")]
+        files = [f for f in unfiltered_files if f.startswith("train_")]
         almighty = ML.mlp()
-        almighty.init_training_random(dir, k, h)
+        almighty.init_training_random(files_dir + "/" + files[0], k, h)
 
         jobs = 0.0
 
 
-        for i in rounds:
+        for i in range(rounds):
             shweights = almighty.get_weights()
+            files = os.listdir(files_dir)
 
-            for filename in os.listdir(dir):
-                if filename.endswith('_train.txt'):
-                    file_path = os.path.join(dir, filename)
-                    self.fqueue.put(file_path)
-                    jobs += 1.0
-            
+            for i in range(1, len(files)):
+                filename = files[i]
+                if filename.startswith('validate_') and filename.endswith('.txt'):
+                    validate_file = filename
+                    continue
+                self.fqueue.put(files_dir + "/" + filename)
+                jobs += 1.0
+            print(", ".join(list(self.fqueue.queue)))
             if (jobs == 0.0):
-                return almighty.validate()
+                return almighty.validate(validate_file)
 
             portnum = 9090
             threads = []
@@ -103,11 +110,12 @@ class CoordinatorHandler:
                 try:
                     transport.open()
                     portnum += 1
-                    thr = threading.Thread(target=compute_work, args=(transport, compute_node, shweights))
+                    thr = threading.Thread(target=self.compute_work, args=(transport, compute_node, shweights))
                     threads.append(thr)
                     thr.start()
 
                 except TTransport.TTransportException as e:
+                    print("Stopped at port:", portnum)
                     break
                 except Exception as e:
                     print(f"Unexpected error: {e}")
@@ -116,11 +124,11 @@ class CoordinatorHandler:
             for thr in threads:
                 thr.join()
 
-            ML.scale_matricies(shgradient[0], (1.0 / jobs))
-            ML.scale_matricies(shgradient[1], (1.0 / jobs))
-            almighty.update_weights(shgradient[0], shgradient[1])
+            ML.scale_matricies(self.shgradient[0], (1.0 / jobs))
+            ML.scale_matricies(self.shgradient[1], (1.0 / jobs))
+            almighty.update_weights(self.shgradient[0], self.shgradient[1])
 
-            validation_err = almighty.validate()
+            validation_err = almighty.validate(validate_files[0])
             print(validation_err)
             return validation_err
 
