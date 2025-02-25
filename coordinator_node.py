@@ -100,7 +100,7 @@ class CoordinatorHandler:
             if (jobs == 0.0):
                 return almighty.validate(validate_file)
 
-            portnum = 9090
+            portnum = 9091
             threads = []
             while(True):
                 transport = TSocket.TSocket('localhost', portnum)
