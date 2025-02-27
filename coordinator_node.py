@@ -25,14 +25,14 @@ import time
 import glob
 import sys
 import queue
-sys.path.append('gen-py')
-sys.path.insert(0, glob.glob('../../thrift-0.19.0/lib/py/build/lib*')[0])
+# sys.path.append('gen-py')
+# sys.path.insert(0, glob.glob('../../thrift-0.19.0/lib/py/build/lib*')[0])
 
-from coordinator import Coordinator
-from compute import Compute
+from gen_py.coordinator import Coordinator
+from gen_py.compute import Compute
 from ml import ML
 
-from compute.ttypes import Model
+from gen_py.compute.ttypes import Model
 
 # from shared.ttypes import SharedStruct
 
@@ -61,7 +61,7 @@ class CoordinatorHandler:
         self.shgradient_mutex = threading.Lock()
 
     def compute_work(self, transport, compute_node, shared_weights):
-        self.fqueue_mutex.acquire()
+        self.fqueue_mutex.acquire() # locking this critical section
         while True:
             try:
                 fname = self.fqueue.get(block=True, timeout=5)
@@ -105,18 +105,19 @@ class CoordinatorHandler:
             for i in range(1, len(files)):
                 filename = files[i]
                 if filename.startswith('validate_') and filename.endswith('.txt'):
-                    validate_file = filename
+                    validate_file = filename # storing our validate file for later use
                     continue
                 self.fqueue.put(files_dir + "/" + filename)
                 jobs += 1.0
+                
             if (jobs == 0.0):
                 return almighty.validate(validate_file)
 
             portnum = 9091
             threads = []
             machines = read_compute_machines("compute_nodes.txt")
+            
             for machine, port in machines:
-
                 transport = TSocket.TSocket(machine, port)
                 transport = TTransport.TBufferedTransport(transport)
                 protocol = TBinaryProtocol.TBinaryProtocol(transport)
@@ -159,7 +160,7 @@ if __name__ == '__main__':
     transport = TSocket.TServerSocket(host='127.0.0.1', port=9090)
     tfactory = TTransport.TBufferedTransportFactory()
     pfactory = TBinaryProtocol.TBinaryProtocolFactory()
-
+    
     server = TServer.TThreadedServer(processor, transport, tfactory, pfactory)
 
     # You could do one of these for a multithreaded server

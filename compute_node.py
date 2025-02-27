@@ -2,18 +2,18 @@ from ml import ML
 import sys
 import glob
 
-sys.path.append('gen-py')
-sys.path.insert(0, glob.glob('../../thrift-0.19.0/lib/py/build/lib*')[0])
+# sys.path.append('gen-py')
+# sys.path.insert(0, glob.glob('../../thrift-0.19.0/lib/py/build/lib*')[0])
 
-from compute import Compute
+from gen_py.compute import Compute
 
-from compute.ttypes import Model
+from gen_py.compute.ttypes import Model
 
 
 from thrift.transport import TSocket, TTransport
 from thrift.protocol import TBinaryProtocol
 from thrift.server import TServer
-
+import os 
 
 
 class ComputeHandler:
@@ -79,20 +79,76 @@ class ComputeHandler:
         self.matrices = shared_model.V, shared_model.W
         if not self.model.init_training_model(fname, shared_model.V, shared_model.W):
             raise ValueError("Model not initialized properly")
-
-
-
     
     
     
-if __name__ == '__main__':
+    def read_compute(self, file):
+        lst = []
+        with open(file, 'r') as f:
+            for line in f:
+                line.strip()
+                if line:
+                    name, port = line.split(',')
+                    lst.append((name.strip(), int(port)))
+        
+        return lst
+    
+    
+    def transportMachine(self, host, port):
+        print(f"THE HOST {host} and the port {port}")
+        handler = ComputeHandler()
+        processor = Compute.Processor(handler)
+
+        transport = TSocket.TServerSocket(host, port)
+        tfactory = TTransport.TBufferedTransportFactory()
+
+        pfactory = TBinaryProtocol.TBinaryProtocolFactory()
+
+
+        server = TServer.TSimpleServer(processor, transport, tfactory, pfactory)
+
+        print(f"Starting Thrift server on port {port}...")
+        server.serve()
+        print("GETTING INSIDE 6")
+
+    
+    
+    def processEachMachine(self):
+        process = []
+        machines = self.read_compute("compute_nodes.txt") # Reading the mahcines
+        for host, port in machines: 
+            pid = os.fork() # forking for each new machine we encounter
+            process.append(os.getpid()) # appending the pid id's to terminate latwr
+            if pid == 0: 
+                self.transportMachine(host, port) # Trying to execute this so we can connect to each machine
+            else: # Failing to fork always hit's this case need to figure out why
+                print("Can't execute child") 
+                return -1     
+        
+        print(process)
+        return 0     
+
+        
+   
+            
+            
+        
+        
+            
+            
+        
+        
+        
+                    
+                    
+if __name__ == "__main__":  
     handler = ComputeHandler()
     processor = Compute.Processor(handler)
 
-    transport = TSocket.TServerSocket(host='127.0.0.1', port=9091)
+    transport = TSocket.TServerSocket(host='127.0.0.1', port=9090)
     tfactory = TTransport.TBufferedTransportFactory()
     pfactory = TBinaryProtocol.TBinaryProtocolFactory()
-
+    handler.processEachMachine()
     server = TServer.TSimpleServer(processor, transport, tfactory, pfactory)
-    print("Starting Thrift server on port 9090...")
+    # print("Starting Thrift server on port 9090...")
     server.serve()

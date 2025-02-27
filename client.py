@@ -24,7 +24,7 @@ import glob
 sys.path.append('gen-py')
 sys.path.insert(0, glob.glob('../../thrift-0.19.0/lib/py/build/lib*')[0])
 
-from coordinator import Coordinator
+from gen_py.coordinator import Coordinator
 
 from thrift import Thrift
 from thrift.transport import TSocket
