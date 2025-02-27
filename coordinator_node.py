@@ -40,6 +40,16 @@ from thrift.transport import TSocket, TTransport
 from thrift.protocol import TBinaryProtocol
 from thrift.server import TServer
 
+def read_compute_machines(filename):
+    machines = []
+    with open(filename, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                machine, port = line.split(',')
+                machines.append((machine.strip(), int(port.strip())))
+
+    return machines
 
 class CoordinatorHandler:
     def __init__(self):
@@ -99,30 +109,31 @@ class CoordinatorHandler:
                     continue
                 self.fqueue.put(files_dir + "/" + filename)
                 jobs += 1.0
-            print(", ".join(list(self.fqueue.queue)))
             if (jobs == 0.0):
                 return almighty.validate(validate_file)
 
             portnum = 9091
             threads = []
-            while(True):
-                transport = TSocket.TSocket('localhost', portnum)
+            machines = read_compute_machines("compute_nodes.txt")
+            for machine, port in machines:
+
+                transport = TSocket.TSocket(machine, port)
                 transport = TTransport.TBufferedTransport(transport)
                 protocol = TBinaryProtocol.TBinaryProtocol(transport)
                 compute_node = Compute.Client(protocol)
                 try:
                     transport.open()
-                    print(f"Successfully connected to port {portnum}")
+                    print(f"Successfully connected to port {port}")
                     portnum += 1
                     thr = threading.Thread(target=self.compute_work, args=(transport, compute_node, shweights))
                     threads.append(thr)
                     thr.start()
 
                 except TTransport.TTransportException as e:
-                    print("Stopped at port:", portnum)
+                    print(f'Stopped at machine {machine}, port {port}', port)
                     break
                 except Exception as e:
-                    print(f"Unexpected error: {e}")
+                    print(f'Unexpected error: {e}')
                     break
 
             for thr in threads:
