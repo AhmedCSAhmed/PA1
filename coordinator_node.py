@@ -39,7 +39,9 @@ from gen_py.compute.ttypes import Model
 from thrift.transport import TSocket, TTransport
 from thrift.protocol import TBinaryProtocol
 from thrift.server import TServer
+import socket
 
+    
 def read_compute_machines(filename):
     machines = []
     with open(filename, 'r') as f:
@@ -61,11 +63,15 @@ class CoordinatorHandler:
         self.shgradient_mutex = threading.Lock()
 
     def compute_work(self, transport, compute_node, shared_weights):
+        
+        print(f"Thread started for {compute_node}")
+        time.sleep(5)  # Keep thread alive
+        # print("THREAD INSTANT DEATH")
         self.fqueue_mutex.acquire() # locking this critical section
         while True:
             try:
                 fname = self.fqueue.get(block=True, timeout=5)
-                self.fqueue_mutex.release()
+                print("SELF MUTEX LOCK TYPE WHEN TRYING TO REALESE", self.fqueue_mutex)
             except queue.Empty as e:
                 self.fqueue_mutex.release()
                 transport.close()
@@ -76,76 +82,137 @@ class CoordinatorHandler:
             model.V = shared_weights[0]
             model.W = shared_weights[1]
 
-            compute_node.set_model(model)
-            compute_node.train(fname)
+
+            # print("THE SHARED WEIGHTS INSIDE OF COMPUTE_WORK FUNC ------>", shared_weights)
+            compute_node.send_set_model(model)
+            compute_node.recv_set_model()
+            print("SENDING TRAIN")            
+            compute_node.send_train(fname)
+            compute_node.recv_train()
+            print("REVIVED TRAIN")
+
 
             self.shgradient_mutex.acquire()
+            # print("COMPUTE NODE.GET GRAIDENT ----->", compute_node.get_gradient())
             new_model = compute_node.get_gradient()
 
             self.shgradient = (ML.sum_matricies(self.shgradient[0], new_model.V), ML.sum_matricies(self.shgradient[1], new_model.W))
             self.shgradient_mutex.release()
-        print(f"Exit thread: {threading.get_ident()}")
+            print(f"Exit thread: {threading.get_ident()}")
 
 
     def train(self, files_dir, rounds, epochs, h, k, eta):
         unfiltered_files = os.listdir(files_dir)
-        validate_files = [f for f in unfiltered_files if f.startswith("validate_")]
-        files = [f for f in unfiltered_files if f.startswith("train_")]
+        validate_files = []
+        directory_path = "/home/ahme0478/Desktop/CSCI5105/PA1/ml/letters"
+        
+        files = os.listdir(directory_path)
+        print(len(files))
+        val = ""
+        for i in range(len(files)):
+            if files[i].startswith("validate_"):
+                validate_files.append(files[i])
+            
+        
+        for i in validate_files:
+            print("THE REMOVED FILE ---->", i)
+            files.remove(i)
+            
+        print("THE VALIDATE FILES -->", validate_files)
+        
+        
+      
+        
+                
+        
+        # print("Files begining of func -->", files)
         almighty = ML.mlp()
-        almighty.init_training_random(files_dir + "/" + files[0], k, h)
+        # print("validate Files _________>>>>>>>", validate_files)
+        # print("FILE DIRECTORY --->", files_dir)
+        almighty.init_training_random(files_dir + '/' +files[0], k, h)
+        # print("ALMIGHTY INTALIZED IS ", almighty.is_initialized())
+        
+        # print("ALMIGHTY WEIGHTS", almighty.get_weights())
         self.init_matrices = almighty.get_weights()
         self.shgradient = almighty.get_weights()
 
         jobs = 0.0
-
+        # print("HITTTTTTT IT RIGHT NOW3")
 
         for i in range(rounds):
-            shweights = almighty.get_weights()
+            # print("HITTTTTTT IT RIGHT NOW2")
 
+            shweights = almighty.get_weights()
+            # print("SHARED WEIGHTSSSS --->", shweights)
+            
+            # print("HITTTTTTT IT RIGHT NOW4")
+            # print("FILESSS BEFRORE THE FOR LOOP --->", files)
             for i in range(1, len(files)):
+                # print("HITTTTTTT IT RIGHT NOW5")
+
                 filename = files[i]
-                if filename.startswith('validate_') and filename.endswith('.txt'):
-                    validate_file = filename # storing our validate file for later use
-                    continue
+                print("WORKING on", filename)
+              
+                
                 self.fqueue.put(files_dir + "/" + filename)
                 jobs += 1.0
                 
             if (jobs == 0.0):
-                return almighty.validate(validate_file)
-
-            portnum = 9091
+                return almighty.validate(validate_files[0])
+            # print("HITTTTTTT IT RIGHT NOW2")
             threads = []
             machines = read_compute_machines("compute_nodes.txt")
             
-            for machine, port in machines:
-                transport = TSocket.TSocket(machine, port)
-                transport = TTransport.TBufferedTransport(transport)
-                protocol = TBinaryProtocol.TBinaryProtocol(transport)
-                compute_node = Compute.Client(protocol)
+            for machine, port in machines:    
                 try:
+                    
+                    print("ATTEMPTING TO CONNECT THRIFT!!")
+                    port = int(port)
+                    
+                    transport = TSocket.TSocket(machine, port)
+                    print(f"CREATED SOCKET ON {machine}:{port}!")
+
+                    transport = TTransport.TBufferedTransport(transport)
+                    print(f"Wrapped transport for {machine}:{port}!")
+
+                    protocol = TBinaryProtocol.TBinaryProtocol(transport)
+                    compute_node = Compute.Client(protocol)
+            
+                    print(f"ABOUT TO OPEN TRANSPORT FOR {machine}:{port}!\n")
+
                     transport.open()
+                    # portnum+=1
                     print(f"Successfully connected to port {port}")
-                    portnum += 1
+                    print("SUCUCESSFULLY CONNECTED!!!!")
                     thr = threading.Thread(target=self.compute_work, args=(transport, compute_node, shweights))
                     threads.append(thr)
+                    print("STARTING THE THREAD!!! -->")
                     thr.start()
+    
+
 
                 except TTransport.TTransportException as e:
-                    print(f'Stopped at machine {machine}, port {port}', port)
+
+                    print(f'Stopped at machine {machine}, port {port}' )
                     break
+                    
                 except Exception as e:
                     print(f'Unexpected error: {e}')
                     break
-
+                    
+            
+            print("THE AMOUNT OF THREADS RUNNING -->", len(threads))
             for thr in threads:
                 thr.join()
 
+            if jobs == 0:
+                jobs = 1
+            print("GET TO VALIDATION SCALE PORTION")
             ML.scale_matricies(self.shgradient[0], (1.0 / jobs))
             ML.scale_matricies(self.shgradient[1], (1.0 / jobs))
             almighty.update_weights(self.shgradient[0], self.shgradient[1])
-
             validation_err = almighty.validate(files_dir + "/" + validate_files[0])
-            print(validation_err)
+            print(f"VALIDATION ERROR --> {validation_err}\n")
             return validation_err
 
         
@@ -160,7 +227,6 @@ if __name__ == '__main__':
     transport = TSocket.TServerSocket(host='127.0.0.1', port=9090)
     tfactory = TTransport.TBufferedTransportFactory()
     pfactory = TBinaryProtocol.TBinaryProtocolFactory()
-    
     server = TServer.TThreadedServer(processor, transport, tfactory, pfactory)
 
     # You could do one of these for a multithreaded server
