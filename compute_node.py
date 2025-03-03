@@ -3,12 +3,12 @@ import sys
 import glob
 import socket
 
-# sys.path.append('gen-py')
-# sys.path.insert(0, glob.glob('../../thrift-0.19.0/lib/py/build/lib*')[0])
+sys.path.append('gen-py')
+sys.path.insert(0, glob.glob('../../thrift-0.19.0/lib/py/build/lib*')[0])
 
-from gen_py.compute import Compute
+from compute import Compute
 
-from gen_py.compute.ttypes import Model
+from compute.ttypes import Model
 
 
 from thrift.transport import TSocket, TTransport
@@ -91,23 +91,13 @@ class ComputeHandler:
     
     
 if __name__ == '__main__':
-    print("IN HERE")
     handler = ComputeHandler()
-    print("IN HERE2")
     processor = Compute.Processor(handler)
-    print("IN HERE3")
-    print("SOCKET NAME ", socket.gethostname())
-    transport = TSocket.TServerSocket(host="localhost", port=int(sys.argv[1]))
-    print(f"IN HERE4 with port at {sys.argv[1]}")
+    transport = TSocket.TServerSocket(host="0.0.0.0", port=int(sys.argv[1]))
     
     tfactory = TTransport.TBufferedTransportFactory()
-    print("IN HERE4")
-
     pfactory = TBinaryProtocol.TBinaryProtocolFactory()
-    print("IN HERE5")
-
     server = TServer.TSimpleServer(processor, transport, tfactory, pfactory)
-    print("IN HERE6\n")
 
     print(f"Starting Thrift server on port {sys.argv[1]} ...")
     server.serve()

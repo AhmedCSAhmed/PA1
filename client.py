@@ -21,10 +21,10 @@
 
 import sys
 import glob
-# sys.path.append('gen-py')
-# sys.path.insert(0, glob.glob('../../thrift-0.19.0/lib/py/build/lib*')[0])
+sys.path.append('gen-py')
+sys.path.insert(0, glob.glob('../../thrift-0.19.0/lib/py/build/lib*')[0])
 
-from gen_py.coordinator import Coordinator
+from coordinator import Coordinator
 
 from thrift import Thrift
 from thrift.transport import TSocket
@@ -58,8 +58,8 @@ def main():
 #     eta: Any
 
     try:
-        sum_ = client.train("/home/ahme0478/Desktop/CSCI5105/PA1/ml/letters" , 25, 15, 20, 26, 0.0001)
-        print("train(\"/home/ahme0478/Desktop/CSCI5105/PA1/ml\" , 2, 30, 20, 26, 0.0001)\n")
+        sum_ = client.train("/home/mulup001/Documents/distributed-systems/pa1/PA1/ml/letters" , 25, 15, 20, 26, 0.0001)
+        print("train(\"/home/mulup001/Documents/distributed-systems/pa1/PA1/ml\" , 2, 30, 20, 26, 0.0001)\n")
         print("THE RESULT OF THE SUM FORM THE CLIENT", sum_)
         # 0.9611428571428572
     except Exception as e:
