@@ -25,6 +25,8 @@ import time
 import glob
 import sys
 import queue
+import random
+import logging
 sys.path.append('gen-py')
 sys.path.insert(0, glob.glob('../../thrift-0.19.0/lib/py/build/lib*')[0])
 
@@ -41,7 +43,20 @@ from thrift.protocol import TBinaryProtocol
 from thrift.server import TServer
 import socket
 
-    
+log_dir = 'logs'
+log_file_path = os.path.join(log_dir, 'coordinator.log')
+
+# Create the log directory if it doesn't exist
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='[%(levelname)s] %(message)s',
+    filename=log_file_path,  # Log to this file
+    filemode='w'  # 'w' to overwrite, 'a' to append
+)
+
 def read_compute_machines(filename):
     machines = []
     with open(filename, 'r') as f:
@@ -54,19 +69,20 @@ def read_compute_machines(filename):
     return machines
 
 class CoordinatorHandler:
-    def __init__(self):
+    def __init__(self, scheduling_policy):
         # TODO: class variables here
         self.fqueue = queue.Queue()
         self.fqueue_mutex = threading.Lock()
         self.shgradient = ([], [])
         self.init_matrices = [], []
         self.shgradient_mutex = threading.Lock()
+        self._scheduling_policy = scheduling_policy
 
     def compute_work(self, machine, transport, compute_node, shared_weights):
 
         hostname = machine
         
-        print(f"[{hostname}] Thread started")
+        logging.info(f"[{hostname}] Thread started")
         # print("THREAD INSTANT DEATH")
          # locking this critical section
         while True:
@@ -77,10 +93,17 @@ class CoordinatorHandler:
             except queue.Empty as e:
                 self.fqueue_mutex.release()
                 transport.close()
-                print(f"[{hostname}] Queue empty")
+                logging.debug(f"[{hostname}] Queue empty")
                 break
             
-            print(f'[{hostname}] Training: {fname}')
+            if (self._scheduling_policy == 2):
+                load_prob = compute_node.get_load_probability()
+                rand_val = random.random()
+                if rand_val < load_prob:
+                    logging.warning(f'[{hostname}] Rejected task.')
+                    continue
+
+            logging.debug(f'[{hostname}] Training: {fname}')
             model = Model()
             model.V = shared_weights[0]
             model.W = shared_weights[1]
@@ -94,14 +117,13 @@ class CoordinatorHandler:
 
             self.shgradient = (ML.sum_matricies(self.shgradient[0], new_model.V), ML.sum_matricies(self.shgradient[1], new_model.W))
             self.shgradient_mutex.release()
-        print(f"[{hostname}] Exiting...")
+        logging.info(f"[{hostname}] Exiting...")
 
 
     def train(self, files_dir, rounds, epochs, h, k, eta):
         unfiltered_files = os.listdir(files_dir)
         validate_files = []
         directory_path = os.getcwd() + "/ml/letters"
-        print(directory_path)
         
         files = os.listdir(directory_path)
         val = ""
@@ -141,7 +163,7 @@ class CoordinatorHandler:
 
                     transport.open()
                     # portnum+=1
-                    print(f"Successfully connected to {machine}:{port}")
+                    logging.info(f"Successfully connected to {machine}:{port}")
                     thr = threading.Thread(target=self.compute_work, args=(machine, transport, compute_node, shweights))
                     threads.append(thr)
                     thr.start()
@@ -150,11 +172,10 @@ class CoordinatorHandler:
 
                 except TTransport.TTransportException as e:
 
-                    print(f'Error connecting to {machine}::{port} with error: {str(e)}' )
-                    break
+                    logging.error(f'Error connecting to {machine}::{port} with error: {str(e)}' )
                     
                 except Exception as e:
-                    print(f'Unexpected error: {str(e)}')
+                    logging.critical(f'Unexpected error: {str(e)}')
                     break
                     
             
@@ -167,6 +188,7 @@ class CoordinatorHandler:
             ML.scale_matricies(self.shgradient[1], (1.0 / jobs))
             almighty.update_weights(self.shgradient[0], self.shgradient[1])
             validation_err = almighty.validate(files_dir + "/" + validate_files[0])
+            logging.info(f"Validation error: {validation_err}\n")
             print(f"Validation error: {validation_err}\n")
             return validation_err
 
@@ -177,7 +199,7 @@ class CoordinatorHandler:
 
 
 if __name__ == '__main__':
-    handler = CoordinatorHandler()
+    handler = CoordinatorHandler(int(sys.argv[2]))
     processor = Coordinator.Processor(handler)
     transport = TSocket.TServerSocket(host='127.0.0.1', port=int(sys.argv[1]))
     tfactory = TTransport.TBufferedTransportFactory()
@@ -190,6 +212,6 @@ if __name__ == '__main__':
     # server = TServer.TThreadPoolServer(
     #     processor, transport, tfactory, pfactory)
 
-    print('Starting the server...')
+    logging.info('Starting the server...')
     server.serve()
-    print('done.')
+    logging.info('done.')
