@@ -26,7 +26,8 @@ hostname = socket.gethostname()
 ### Logging implementation
 
 log_dir = 'logs'
-log_file_path = os.path.join(log_dir, 'compute.log')
+log_file = hostname + '_compute.log'
+log_file_path = os.path.join(log_dir, log_file)
 
 # Create the log directory if it doesn't exist
 if not os.path.exists(log_dir):
