@@ -1,24 +1,3 @@
-#!/usr/bin/env python
-
-#
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements. See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership. The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License. You may obtain a copy of the License at
-#
-#   http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied. See the License for the
-# specific language governing permissions and limitations
-# under the License.
-#
-
 import threading
 import os
 import time
@@ -36,8 +15,6 @@ from ml import ML
 
 from compute.ttypes import Model
 
-# from shared.ttypes import SharedStruct
-
 from thrift.transport import TSocket, TTransport
 from thrift.protocol import TBinaryProtocol
 from thrift.server import TServer
@@ -46,15 +23,14 @@ import socket
 log_dir = 'logs'
 log_file_path = os.path.join(log_dir, 'coordinator.log')
 
-# Create the log directory if it doesn't exist
 if not os.path.exists(log_dir):
     os.makedirs(log_dir)
 
 logging.basicConfig(
     level=logging.DEBUG,
     format='[%(levelname)s] %(message)s',
-    filename=log_file_path,  # Log to this file
-    filemode='w'  # 'w' to overwrite, 'a' to append
+    filename=log_file_path,
+    filemode='w'
 )
 
 def read_compute_machines(filename):
@@ -70,7 +46,6 @@ def read_compute_machines(filename):
 
 class CoordinatorHandler:
     def __init__(self, scheduling_policy):
-        # TODO: class variables here
         self.fqueue = queue.Queue()
         self.fqueue_mutex = threading.Lock()
         self.shgradient = ([], [])
@@ -83,8 +58,7 @@ class CoordinatorHandler:
         hostname = machine
         
         logging.info(f"[{hostname}] Thread started")
-        # print("THREAD INSTANT DEATH")
-         # locking this critical section
+        print(f"[{hostname}] Thread started")
         while True:
             self.fqueue_mutex.acquire()
             try:
@@ -94,6 +68,7 @@ class CoordinatorHandler:
                 self.fqueue_mutex.release()
                 transport.close()
                 logging.debug(f"[{hostname}] Queue empty")
+                print(f"[{hostname}] Queue empty")
                 break
             
             if (self._scheduling_policy == 2):
@@ -101,9 +76,14 @@ class CoordinatorHandler:
                 rand_val = random.random()
                 if rand_val < load_prob:
                     logging.warning(f'[{hostname}] Rejected task.')
+                    print(f'[{hostname}] Rejected task.')
+                    self.fqueue_mutex.acquire()
+                    self.fqueue.put(fname)
+                    self.fqueue_mutex.release()
                     continue
 
             logging.debug(f'[{hostname}] Training: {fname}')
+            print(f'[{hostname}] Training: {fname}')
             model = Model()
             model.V = shared_weights[0]
             model.W = shared_weights[1]
@@ -118,6 +98,7 @@ class CoordinatorHandler:
             self.shgradient = (ML.sum_matricies(self.shgradient[0], new_model.V), ML.sum_matricies(self.shgradient[1], new_model.W))
             self.shgradient_mutex.release()
         logging.info(f"[{hostname}] Exiting...")
+        print(f"[{hostname}] Exiting...")
 
 
     def train(self, files_dir, rounds, epochs, h, k, eta):
@@ -164,6 +145,7 @@ class CoordinatorHandler:
                     transport.open()
                     # portnum+=1
                     logging.info(f"Successfully connected to {machine}:{port}")
+                    print(f"Successfully connected to {machine}:{port}")
                     thr = threading.Thread(target=self.compute_work, args=(machine, transport, compute_node, shweights))
                     threads.append(thr)
                     thr.start()
@@ -173,9 +155,11 @@ class CoordinatorHandler:
                 except TTransport.TTransportException as e:
 
                     logging.error(f'Error connecting to {machine}::{port} with error: {str(e)}' )
+                    print(f'Error connecting to {machine}::{port} with error: {str(e)}' )
                     
                 except Exception as e:
                     logging.critical(f'Unexpected error: {str(e)}')
+                    print(f'Unexpected error: {str(e)}')
                     break
                     
             
@@ -213,5 +197,7 @@ if __name__ == '__main__':
     #     processor, transport, tfactory, pfactory)
 
     logging.info('Starting the server...')
+    print('Starting the server...')
     server.serve()
     logging.info('done.')
+    print('done.')

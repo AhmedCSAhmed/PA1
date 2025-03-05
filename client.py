@@ -34,7 +34,7 @@ from thrift.protocol import TBinaryProtocol
 
 def main():
     # Make socket
-    transport = TSocket.TSocket('localhost', 9090)
+    transport = TSocket.TSocket('localhost', 8080)
 
     # Buffering is critical. Raw sockets are very slow
     transport = TTransport.TBufferedTransport(transport)
@@ -60,8 +60,8 @@ def main():
     try:
         sum_ = client.train("/home/mulup001/Documents/distributed-systems/pa1/PA1/ml/letters" , 25, 15, 20, 26, 0.0001)
         print("train(\"/home/mulup001/Documents/distributed-systems/pa1/PA1/ml\" , 2, 30, 20, 26, 0.0001)\n")
-        print("THE RESULT OF THE SUM FORM THE CLIENT", sum_)
-        # 0.9611428571428572
+        print("validation error from coordinator: ", sum_)
+        # 0.882
     except Exception as e:
         print('Error occured: ', e)
 
